@@ -1,0 +1,12 @@
+# Bibliotecile de care are nevoie proiectul.
+# Se instalează cu:  pip install -r requirements.txt   (cu venv-ul activat)
+# Versiunile minime sunt fixate ca proiectul să se comporte la fel pe orice calculator.
+
+fastapi>=0.115        # framework-ul web: primește cereri de la browser și decide ce răspuns trimite
+uvicorn[standard]>=0.30  # serverul care rulează efectiv aplicația FastAPI
+httpx>=0.27           # trimite cereri HTTP către API-urile externe (OpenAlex, Semantic Scholar, Hugging Face)
+jinja2>=3.1           # completează paginile HTML cu date (șabloane)
+python-dotenv>=1.0    # citește cheile API din fișierul .env
+
+# Doar pentru dezvoltare (teste):
+pytest>=8.0

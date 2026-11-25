@@ -1,0 +1,122 @@
+{#
+  Șablon Jinja2 = HTML obișnuit + câteva "instrucțiuni" pe care Python le completează:
+    {{ variabila }}            -> afișează o valoare
+    {% if ... %} {% endif %}   -> afișează o bucată doar dacă o condiție e adevărată
+    {% for x in lista %} ...   -> repetă o bucată pentru fiecare element
+  Variabilele (q, results, articles...) vin din dicționarul "context" din app/main.py.
+  Jinja2 "escapează" automat textul (ex: < devine &lt;), deci un titlu ciudat nu poate strica pagina.
+#}
+<!doctype html>
+<html lang="ro">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if q %}{{ q }} · {% endif %}EMG Search</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='style.css') }}">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/">EMG<span>Search</span></a>
+  <p class="tagline">Articole și seturi de date despre electromiografie: OpenAlex · Semantic Scholar · Hugging Face</p>
+</header>
+
+<main>
+  {# Formularul trimite datele prin GET, adică le pune în adresă: /?q=...&year_from=... #}
+  <form class="search" method="get" action="/">
+    <div class="search-row">
+      <input type="search" name="q" value="{{ q }}" placeholder="ex: hand muscle, gesture recognition, fatigue..." autofocus required minlength="2">
+      <button type="submit">Caută</button>
+    </div>
+    <div class="filters">
+      <label>Din anul <input type="number" name="year_from" value="{{ year_from }}" min="1900" max="2100"></label>
+      <label>până în <input type="number" name="year_to" value="{{ year_to }}" min="1900" max="2100"></label>
+      <label class="check"><input type="checkbox" name="oa" value="true" {% if oa %}checked{% endif %}> doar open access</label>
+      <label>Ordonare
+        <select name="sort">
+          <option value="relevance" {% if sort == 'relevance' %}selected{% endif %}>relevanță</option>
+          <option value="year" {% if sort == 'year' %}selected{% endif %}>cele mai noi</option>
+          <option value="citations" {% if sort == 'citations' %}selected{% endif %}>cele mai citate</option>
+        </select>
+      </label>
+      <input type="hidden" name="tab" value="{{ tab }}">
+    </div>
+    <p class="hint">Căutarea e limitată automat la domeniul EMG: nu e nevoie să scrii „EMG” în căutare.</p>
+  </form>
+
+  {% if results %}
+    {# --- Starea surselor: câte rezultate a dat fiecare / ce erori au fost --- #}
+    <section class="status">
+      {% for source, count in results.counts.items() %}
+        <span class="pill {% if source in results.errors %}pill-err{% endif %}">
+          {{ source }}: {% if source in results.errors %}eroare{% else %}{{ count }}{% endif %}
+        </span>
+      {% endfor %}
+      <span class="meta">
+        {% if results.from_cache %}din cache{% else %}{{ results.duration_s }} s{% endif %}
+        {% if results.filtered_out %} · {{ results.filtered_out }} rezultate eliminate (nu erau despre EMG){% endif %}
+      </span>
+    </section>
+    {% for source, msg in results.errors.items() %}
+      <div class="alert"><strong>{{ source }}</strong>: {{ msg }}</div>
+    {% endfor %}
+
+    {# --- Taburi: Articole / Seturi de date. Fiecare tab e doar un link cu alt parametru "tab". --- #}
+    {% set base = '?q=' ~ (q|urlencode) ~ '&year_from=' ~ year_from ~ '&year_to=' ~ year_to ~ ('&oa=true' if oa else '') ~ '&sort=' ~ sort %}
+    <nav class="tabs">
+      <a href="{{ base }}&tab=articles" class="{% if tab != 'datasets' %}active{% endif %}">Articole <b>{{ articles|length }}</b></a>
+      <a href="{{ base }}&tab=datasets" class="{% if tab == 'datasets' %}active{% endif %}">Seturi de date <b>{{ results.datasets|length }}</b></a>
+    </nav>
+
+    {% if tab != 'datasets' %}
+      {% if not articles %}<p class="empty">Niciun articol pentru această căutare și aceste filtre.</p>{% endif %}
+      <ol class="results">
+      {% for a in articles %}
+        <li class="card">
+          <h3><a href="{{ a.url or '#' }}" target="_blank" rel="noopener">{{ a.title }}</a></h3>
+          <p class="byline">
+            {% if a.authors %}{{ a.authors[:4]|join(', ') }}{% if a.authors|length > 4 %} et al.{% endif %}{% endif %}
+            {% if a.year %} · {{ a.year }}{% endif %}
+            {% if a.venue %} · <i>{{ a.venue }}</i>{% endif %}
+          </p>
+          {% if a.abstract %}
+            <details><summary>{{ a.abstract[:260] }}{% if a.abstract|length > 260 %}…{% endif %}</summary><p>{{ a.abstract }}</p></details>
+          {% endif %}
+          <p class="tags">
+            {% for s in a.sources %}<span class="tag">{{ s }}</span>{% endfor %}
+            {% if a.citation_count is not none %}<span class="tag">{{ a.citation_count }} citări</span>{% endif %}
+            {% if a.is_open_access %}<span class="tag tag-oa">open access</span>{% endif %}
+            {% if a.pdf_url %}<a class="tag tag-link" href="{{ a.pdf_url }}" target="_blank" rel="noopener">PDF</a>{% endif %}
+            {% if a.doi %}<span class="doi">doi: {{ a.doi }}</span>{% endif %}
+          </p>
+        </li>
+      {% endfor %}
+      </ol>
+    {% else %}
+      <p class="hint">Seturile de date EMG de pe Hugging Face, ordonate după potrivirea cu căutarea ta, apoi după numărul de descărcări. Filtrele de an/open access se aplică doar articolelor.</p>
+      {% if not results.datasets %}<p class="empty">Niciun set de date găsit.</p>{% endif %}
+      <ol class="results">
+      {% for d in results.datasets[:50] %}
+        <li class="card">
+          <h3><a href="{{ d.url }}" target="_blank" rel="noopener">{{ d.id }}</a></h3>
+          {% if d.description %}<p class="desc">{{ d.description[:300] }}{% if d.description|length > 300 %}…{% endif %}</p>{% endif %}
+          <p class="tags">
+            <span class="tag">{{ d.downloads }} descărcări</span>
+            <span class="tag">{{ d.likes }} like-uri</span>
+            {% if d.last_modified %}<span class="tag">actualizat {{ d.last_modified }}</span>{% endif %}
+            {% for t in d.tags[:5] %}<span class="tag tag-muted">{{ t }}</span>{% endfor %}
+          </p>
+        </li>
+      {% endfor %}
+      </ol>
+    {% endif %}
+  {% endif %}
+</main>
+
+<footer>
+  Date: <a href="https://openalex.org" target="_blank" rel="noopener">OpenAlex</a>,
+  <a href="https://www.semanticscholar.org" target="_blank" rel="noopener">Semantic Scholar</a>,
+  <a href="https://huggingface.co/datasets" target="_blank" rel="noopener">Hugging Face</a>
+  · <a href="/docs">API</a>
+</footer>
+</body>
+</html>

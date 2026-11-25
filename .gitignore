@@ -1,0 +1,16 @@
+# Fișiere care NU se urcă pe GitHub.
+
+# Mediul virtual: fiecare îl creează local (se reface din requirements.txt)
+.venv/
+venv/
+
+# Secrete: cheile API stau doar pe calculatorul tău
+.env
+
+# Fișiere generate automat de Python / unelte
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Setări personale ale editorului
+.vscode/
